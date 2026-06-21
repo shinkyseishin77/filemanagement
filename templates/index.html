@@ -20,6 +20,7 @@
             </div>
             <div class="topbar-actions">
                 <button id="themeToggle" class="btn-icon" aria-label="Toggle Dark Mode">🌙</button>
+                <button id="btnPaste" class="btn btn-secondary" style="display: none;">📋 Paste</button>
                 <button id="btnAdd" class="btn btn-primary">+ Add New</button>
             </div>
         </header>
@@ -146,6 +147,10 @@
                             <label>Folder Name</label>
                             <input type="text" id="folderName" required placeholder="My Documents">
                         </div>
+                        <div class="form-group checkbox-group" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+                            <input type="checkbox" id="folderIsPrivate" style="width: auto;">
+                            <label for="folderIsPrivate" style="margin-bottom: 0;">Make this folder Private</label>
+                        </div>
                         <button type="submit" class="btn btn-primary full-width">Create Folder</button>
                     </form>
                 </div>
@@ -182,7 +187,30 @@
                         <label>Note (Optional)</label>
                         <textarea id="editNote" rows="2"></textarea>
                     </div>
+                    <div class="form-group checkbox-group" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; margin-bottom: 1.5rem;">
+                        <input type="checkbox" id="editIsPrivate" style="width: auto;">
+                        <label for="editIsPrivate" style="margin-bottom: 0;">Private Item</label>
+                    </div>
                     <button type="submit" class="btn btn-primary full-width">Save Changes</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2>Private Folder</h2>
+                <span class="close-modal" id="closeAuthModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="authForm">
+                    <div class="form-group">
+                        <label>Password Required</label>
+                        <input type="password" id="authPassword" required placeholder="Enter password...">
+                    </div>
+                    <button type="submit" class="btn btn-primary full-width">Unlock</button>
                 </form>
             </div>
         </div>

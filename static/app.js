@@ -18,6 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAdd = document.getElementById('btnAdd');
     const closeAddModal = document.getElementById('closeAddModal');
     const closeEditModal = document.getElementById('closeEditModal');
+    const btnPaste = document.getElementById('btnPaste');
+    const authModal = document.getElementById('authModal');
+    const closeAuthModal = document.getElementById('closeAuthModal');
+    const authForm = document.getElementById('authForm');
 
     // Forms
     const uploadForm = document.getElementById('uploadForm');
@@ -28,6 +32,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentItems = [];
     let isGridView = true;
     let currentParentId = null;
+    let clipboard = null;
+    let privatePassword = null;
 
     const breadcrumbContainer = document.getElementById('breadcrumbContainer');
     const folderForm = document.getElementById('folderForm');
@@ -74,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('click', (e) => {
         if (e.target === addModal) addModal.classList.remove('show');
         if (e.target === editModal) editModal.classList.remove('show');
+        if (e.target === authModal) authModal.classList.remove('show');
     });
 
     // Tabs in Add Modal
@@ -88,6 +95,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Fetch Data
+
+    async function apiFetch(url, options = {}) {
+        if (!options.headers) options.headers = {};
+        if (privatePassword) {
+            options.headers['X-Private-Password'] = privatePassword;
+        }
+        const res = await fetch(url, options);
+        if (res.status === 403) {
+            authModal.classList.add('show');
+            throw new Error('AUTH_REQUIRED');
+        }
+        return res;
+    }
+
     async function loadItems() {
         const search = searchInput.value;
         const category = filterCategory.value;
@@ -105,18 +126,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sort) params.append('sort', sort);
 
         try {
-            const res = await fetch(`/api/items?${params.toString()}`);
+            const res = await apiFetch(`/api/items?${params.toString()}`);
             currentItems = await res.json();
             renderItems();
             loadBreadcrumbs();
         } catch (error) {
-            showToast('Error loading items', true);
+            if (error.message !== 'AUTH_REQUIRED') showToast('Error loading items', true);
         }
     }
 
     async function loadBreadcrumbs() {
         try {
-            const res = await fetch(`/api/breadcrumb/${currentParentId || 'null'}`);
+            const res = await apiFetch(`/api/breadcrumb/${currentParentId || 'null'}`);
             const breadcrumbs = await res.json();
 
             breadcrumbContainer.innerHTML = '<span class="breadcrumb-item" data-id="null">🏠 Home</span>';
@@ -135,7 +156,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     const id = item.getAttribute('data-id');
                     if (id !== currentParentId) {
                         currentParentId = id === 'null' ? null : id;
+                        privatePassword = null;
                         loadItems();
+                    }
+                });
+                item.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    item.classList.add('drag-over');
+                });
+                item.addEventListener('dragleave', () => {
+                    item.classList.remove('drag-over');
+                });
+                item.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    item.classList.remove('drag-over');
+                    const draggedId = e.dataTransfer.getData('text/plain');
+                    const targetId = item.getAttribute('data-id');
+                    if (draggedId && draggedId !== targetId) {
+                        moveItem(draggedId, targetId === 'null' ? null : targetId);
                     }
                 });
             });
@@ -155,15 +193,17 @@ document.addEventListener('DOMContentLoaded', () => {
         currentItems.forEach(item => {
             const card = document.createElement('div');
             card.className = 'item-card';
+            card.setAttribute('draggable', 'true');
 
             const icon = getFileIcon(item);
             const sizeStr = item.size ? formatBytes(item.size) : '';
             const dateStr = new Date(item.added_at).toLocaleDateString();
+            const lockIcon = item.is_locked ? '🔒 ' : '';
 
             card.innerHTML = `
                 <div class="card-icon">${icon}</div>
                 <div class="card-content">
-                    <div class="card-title" title="${item.name}">${item.name}</div>
+                    <div class="card-title" title="${item.name}">${lockIcon}${item.name}</div>
                     <div class="card-meta">
                         <span>${dateStr}</span>
                         ${sizeStr ? `<span>• ${sizeStr}</span>` : ''}
@@ -171,6 +211,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${item.category ? `<span class="card-tag">${item.category}</span>` : ''}
                 </div>
                 <div class="card-actions">
+                    ${item.type === 'file' ? `<button class="action-btn download-btn" data-id="${item.id}" title="Download">⬇️</button>` : ''}
+                    <button class="action-btn cut-btn" data-id="${item.id}" title="Cut">✂️</button>
                     <button class="action-btn edit-btn" data-id="${item.id}" title="Edit">✏️</button>
                     <button class="action-btn delete-btn" data-id="${item.id}" title="Delete">🗑️</button>
                 </div>
@@ -182,11 +224,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (item.type === 'folder') {
                         currentParentId = item.id;
                         searchInput.value = '';
+                        privatePassword = null;
                         loadItems();
                     } else {
                         openItem(item.id);
                     }
                 }
+            });
+
+            // Download
+            if (item.type === 'file') {
+                card.querySelector('.download-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    window.location.href = privatePassword ? `/api/download/${item.id}?pwd=${encodeURIComponent(privatePassword)}` : `/api/download/${item.id}`;
+                });
+            }
+
+            // Cut
+            card.querySelector('.cut-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                clipboard = { id: item.id, name: item.name };
+                updatePasteButton();
+                showToast(`Cut "${item.name}"`);
             });
 
             // Edit
@@ -202,6 +261,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     deleteItem(item.id);
                 }
             });
+
+            // Drag & Drop
+            card.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', item.id);
+                e.target.style.opacity = '0.5';
+            });
+            card.addEventListener('dragend', (e) => {
+                e.target.style.opacity = '1';
+            });
+
+            if (item.type === 'folder') {
+                card.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    card.classList.add('drag-over');
+                });
+                card.addEventListener('dragleave', () => {
+                    card.classList.remove('drag-over');
+                });
+                card.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    card.classList.remove('drag-over');
+                    const draggedId = e.dataTransfer.getData('text/plain');
+                    if (draggedId && draggedId !== item.id) {
+                        moveItem(draggedId, item.id);
+                    }
+                });
+            }
 
             itemContainer.appendChild(card);
         });
@@ -246,12 +332,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // API Calls
     function openItem(id) {
-        window.open(`/api/open/${id}`, '_blank');
+        let url = `/api/open/${id}`;
+        if (privatePassword) url += `?pwd=${encodeURIComponent(privatePassword)}`;
+        window.open(url, '_blank');
     }
 
     async function deleteItem(id) {
         try {
-            const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+            const res = await apiFetch(`/api/items/${id}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete');
             showToast('Item deleted');
             loadItems();
@@ -272,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            const res = await fetch('/api/items', {
+            const res = await apiFetch('/api/items', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -295,11 +383,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const payload = {
                 type: 'folder',
                 name: document.getElementById('folderName').value,
+                is_private: document.getElementById('folderIsPrivate').checked,
                 parent_id: currentParentId
             };
 
             try {
-                const res = await fetch('/api/items', {
+                const res = await apiFetch('/api/items', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -348,7 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             showToast('Uploading...');
-            const res = await fetch('/api/upload', {
+            const res = await apiFetch('/api/upload', {
                 method: 'POST',
                 body: formData
             });
@@ -404,6 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('editName').value = item.name;
         document.getElementById('editCategory').value = item.category || 'Other';
         document.getElementById('editNote').value = item.note || '';
+        document.getElementById('editIsPrivate').checked = item.is_private || false;
         editModal.classList.add('show');
     }
 
@@ -413,11 +503,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = {
             name: document.getElementById('editName').value,
             category: document.getElementById('editCategory').value,
-            note: document.getElementById('editNote').value
+            note: document.getElementById('editNote').value,
+            is_private: document.getElementById('editIsPrivate').checked
         };
 
         try {
-            const res = await fetch(`/api/items/${id}`, {
+            const res = await apiFetch(`/api/items/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -447,4 +538,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial Load
     loadItems();
+
+    function updatePasteButton() {
+        if (clipboard) {
+            btnPaste.style.display = 'inline-block';
+            btnPaste.textContent = `📋 Paste ${clipboard.name}`;
+        } else {
+            btnPaste.style.display = 'none';
+        }
+    }
+
+    btnPaste.addEventListener('click', () => {
+        if (!clipboard) return;
+        moveItem(clipboard.id, currentParentId);
+        clipboard = null;
+        updatePasteButton();
+    });
+
+    async function moveItem(itemId, newParentId) {
+        try {
+            const res = await apiFetch(`/api/items/${itemId}/move`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ parent_id: newParentId })
+            });
+            if (!res.ok) throw new Error('Failed to move item');
+            showToast('Item moved successfully');
+            loadItems();
+        } catch (error) {
+            showToast(error.message, true);
+        }
+    }
+
+    authForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const pwd = document.getElementById('authPassword').value;
+        const tempPwd = privatePassword;
+        privatePassword = pwd;
+        
+        try {
+            const params = new URLSearchParams();
+            if (currentParentId) params.append('parent_id', currentParentId);
+            const res = await fetch(`/api/items?${params.toString()}`, {
+                headers: { 'X-Private-Password': pwd }
+            });
+            if (res.ok) {
+                authModal.classList.remove('show');
+                authForm.reset();
+                loadItems();
+            } else {
+                privatePassword = tempPwd;
+                showToast('Invalid password', true);
+            }
+        } catch (error) {
+            privatePassword = tempPwd;
+            showToast('Error', true);
+        }
+    });
+
+    closeAuthModal.addEventListener('click', () => {
+        authModal.classList.remove('show');
+        currentParentId = null;
+        loadItems();
+    });
 });

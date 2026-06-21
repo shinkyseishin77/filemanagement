@@ -15,3 +15,6 @@ venv/
 .venv/
 env.bak/
 venv.bak/
+
+# Configuration
+config.json

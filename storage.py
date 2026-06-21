@@ -3,11 +3,40 @@ import os
 import uuid
 from datetime import datetime
 
-DB_FILE = 'database.json'
+def load_config():
+    try:
+        with open('config.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {
+            "storage_dir": "storage",
+            "db_file": "database.json",
+            "private_folder_name": "Private",
+            "private_folder_password": "admin",
+            "secret_key": "default_secret_key"
+        }
+
+config = load_config()
+DB_FILE = config.get("db_file", "database.json")
 
 def init_db():
     if not os.path.exists(DB_FILE):
         save_db({"items": []})
+        
+    # Ensure db has migrated existing private folders
+    db = load_db()
+    private_name = config.get("private_folder_name", "Private")
+    items = db.get("items", [])
+    modified = False
+    
+    for item in items:
+        if item.get("name") == private_name and not item.get("parent_id") and item.get("type") == "folder":
+            if not item.get("is_private"):
+                item["is_private"] = True
+                modified = True
+                
+    if modified:
+        save_db(db)
 
 def load_db():
     try:
@@ -68,7 +97,8 @@ def add_item(item_data):
         "added_at": datetime.now().isoformat(),
         "size": item_data.get("size", 0),
         "note": item_data.get("note", ""),
-        "parent_id": item_data.get("parent_id")
+        "parent_id": item_data.get("parent_id"),
+        "is_private": item_data.get("is_private", False)
     }
     
     db.setdefault("items", []).append(item)
@@ -80,7 +110,7 @@ def update_item(item_id, item_data):
     for item in db.get("items", []):
         if item.get("id") == item_id:
             # Update fields
-            for key in ["name", "category", "tags", "note"]:
+            for key in ["name", "category", "tags", "note", "parent_id", "is_private"]:
                 if key in item_data:
                     item[key] = item_data[key]
             save_db(db)
@@ -128,3 +158,21 @@ def get_breadcrumb(item_id):
             break
             
     return breadcrumb
+
+def is_in_private_folder(item_id):
+    if not item_id:
+        return False
+    
+    # Check item itself
+    item = get_item(item_id)
+    if item and item.get("is_private"):
+        return True
+        
+    # Check breadcrumb parents
+    breadcrumb = get_breadcrumb(item_id)
+    for bc in breadcrumb:
+        bc_item = get_item(bc['id'])
+        if bc_item and bc_item.get("is_private"):
+            return True
+                
+    return False

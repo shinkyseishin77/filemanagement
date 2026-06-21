@@ -245,7 +245,7 @@ body {
     padding: 0.2rem 0.5rem;
 }
 
-.breadcrumb-item:hover {
+.breadcrumb-item:hover, .breadcrumb-item.drag-over {
     color: var(--card-bg);
     background: var(--accent-color);
 }
@@ -370,7 +370,7 @@ body {
     cursor: pointer;
 }
 
-.item-card:hover {
+.item-card:hover, .item-card.drag-over {
     transform: translate(-4px, -4px);
     box-shadow: var(--shadow-lg);
     border-color: var(--accent-color);
