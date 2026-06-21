@@ -1,0 +1,17 @@
+# Ignore storage folder for uploaded files
+storage/
+
+# Ignore flat-file database
+database.json
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+env.bak/
+venv.bak/

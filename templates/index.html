@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Manager Pro</title>
+    <!-- Use Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Navigation -->
+        <header class="topbar">
+            <div class="logo">
+                <span class="logo-icon">📁</span>
+                <h1>File Manager Pro</h1>
+            </div>
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Search files, urls, notes..." autocomplete="off">
+            </div>
+            <div class="topbar-actions">
+                <button id="themeToggle" class="btn-icon" aria-label="Toggle Dark Mode">🌙</button>
+                <button id="btnAdd" class="btn btn-primary">+ Add New</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Breadcrumb Navigation -->
+            <div class="breadcrumb-container" id="breadcrumbContainer">
+                <span class="breadcrumb-item" data-id="null">🏠 Home</span>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <div class="filters">
+                    <select id="filterCategory" class="dropdown">
+                        <option value="">All Categories</option>
+                        <option value="Documents">Documents</option>
+                        <option value="Images">Images</option>
+                        <option value="Videos">Videos</option>
+                        <option value="Audio">Audio</option>
+                        <option value="Links">Links</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    
+                    <select id="sortSelect" class="dropdown">
+                        <option value="date_desc">Newest First</option>
+                        <option value="date_asc">Oldest First</option>
+                        <option value="name">Name (A-Z)</option>
+                        <option value="size_desc">Size (Largest)</option>
+                        <option value="size_asc">Size (Smallest)</option>
+                    </select>
+                </div>
+                <div class="view-toggles">
+                    <button class="btn-icon active" id="gridViewBtn">Grid</button>
+                    <button class="btn-icon" id="listViewBtn">List</button>
+                </div>
+            </div>
+
+            <!-- Drop Zone for files -->
+            <div id="dropZone" class="drop-zone">
+                <div class="drop-content">
+                    <span class="drop-icon">☁️</span>
+                    <h3>Drag & Drop Files Here</h3>
+                    <p>or click to browse</p>
+                    <input type="file" id="fileInputHidden" multiple style="display: none;">
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div id="itemContainer" class="item-grid">
+                <!-- Items will be injected here via JS -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- Add Modal -->
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Item</h2>
+                <span class="close-modal" id="closeAddModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="uploadTab">Upload File</button>
+                    <button class="tab-btn" data-tab="urlTab">Add URL</button>
+                    <button class="tab-btn" data-tab="folderTab">New Folder</button>
+                </div>
+                
+                <div class="tab-content active" id="uploadTab">
+                    <form id="uploadForm">
+                        <div class="form-group">
+                            <label>File</label>
+                            <input type="file" id="fileUpload" multiple required>
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select id="uploadCategory" class="dropdown">
+                                <option value="Documents">Documents</option>
+                                <option value="Images">Images</option>
+                                <option value="Videos">Videos</option>
+                                <option value="Audio">Audio</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Note (Optional)</label>
+                            <textarea id="uploadNote" rows="2" placeholder="Add some notes..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary full-width">Upload</button>
+                    </form>
+                </div>
+                
+                <div class="tab-content" id="urlTab">
+                    <form id="urlForm">
+                        <div class="form-group">
+                            <label>Title</label>
+                            <input type="text" id="urlTitle" required placeholder="Website name">
+                        </div>
+                        <div class="form-group">
+                            <label>URL</label>
+                            <input type="url" id="urlLink" required placeholder="https://...">
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select id="urlCategory" class="dropdown">
+                                <option value="Links">Links</option>
+                                <option value="Documents">Documents</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Note (Optional)</label>
+                            <textarea id="urlNote" rows="2" placeholder="Add some notes..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary full-width">Save URL</button>
+                    </form>
+                </div>
+                
+                <div class="tab-content" id="folderTab">
+                    <form id="folderForm">
+                        <div class="form-group">
+                            <label>Folder Name</label>
+                            <input type="text" id="folderName" required placeholder="My Documents">
+                        </div>
+                        <button type="submit" class="btn btn-primary full-width">Create Folder</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Item</h2>
+                <span class="close-modal" id="closeEditModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <input type="hidden" id="editId">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" id="editName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="editCategory" class="dropdown">
+                            <option value="Documents">Documents</option>
+                            <option value="Images">Images</option>
+                            <option value="Videos">Videos</option>
+                            <option value="Audio">Audio</option>
+                            <option value="Links">Links</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Note (Optional)</label>
+                        <textarea id="editNote" rows="2"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary full-width">Save Changes</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Message here</div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
